@@ -39,7 +39,7 @@ class ADSControllerPurePursuit:
 
         self.csv_path = rospy.get_param(
             '~middle_line_path',
-            './hand_driving_trainingmap.csv'
+            '/home/aimlab/Formula-Student-Driverless-Simulator/maps/'
         )
 
         self.latlon_path   = []
