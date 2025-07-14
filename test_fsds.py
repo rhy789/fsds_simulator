@@ -78,21 +78,11 @@ class ADSControllerPurePursuit:
         rospy.Subscriber('/fsds/lidar/lidar1', PointCloud2, self.lidar_cb)
         rospy.Subscriber('/fsds/gps', NavSatFix, self.gps_cb)
         rospy.Subscriber('/fsds/imu', Imu, self.imu_cb)
-        rospy.Subscriber('/fsds/signal/go', Bool, self.go_cb)
-        rospy.Subscriber('/fsds/emergency_stop', Bool, self.emergency_stop_cb)
 
-        self.ctrl_pub     = rospy.Publisher('/fsds/control_command', ControlCommand, queue_size=1)
-        self.status_pub   = rospy.Publisher('/fsds/AS_status', String, queue_size=1)
-        self.finished_pub = rospy.Publisher('/fsds/signal/finished', Bool, queue_size=1)
         self.pose_pub     = rospy.Publisher('/current_pose', PoseStamped, queue_size=1)
         self.direction_pub= rospy.Publisher('/midline_direction_markers', MarkerArray, queue_size=1)
 
-        rospy.Timer(rospy.Duration(1.0), self.publish_status)
-
-        self.load_and_preprocess_path()
-
         self.state = ASStatus.READY
-        self.publish_status()
 
         rospy.spin()
 
@@ -127,57 +117,6 @@ class ADSControllerPurePursuit:
         self.angular_velocity = msg.angular_velocity
         self.linear_acceleration = msg.linear_acceleration
         rospy.loginfo("IMU received")
-
-    def go_cb(self, msg):
-        if msg.data:
-            self.go_signal = True
-            if self.state == ASStatus.READY:
-                self.state = ASStatus.DRIVING
-                rospy.loginfo("GO signal received - Starting autonomous driving")
-
-    def emergency_stop_cb(self, msg):
-        if msg.data:
-            self.emergency = True
-            self.state = ASStatus.EMERGENCY
-            self.publish_status()
-            self.publish_emergency_stop()
-            rospy.logwarn("Emergency stop signal received!")
-
-    def publish_status(self, event=None):
-        self.status_pub.publish(self.state)
-
-    def publish_emergency_stop(self):
-        cmd = ControlCommand()
-        cmd.header.stamp = rospy.Time.now()
-        cmd.steering = 0.0
-        cmd.throttle = 0.0
-        cmd.brake = 1.0
-        self.ctrl_pub.publish(cmd)
-
-    def finish_mission(self):
-        self.state = ASStatus.FINISHED
-        self.finished_pub.publish(True)
-        self.publish_status()
-        rospy.loginfo("Mission finished signal sent")
-
-    def load_and_preprocess_path(self):
-        try:
-            with open(self.csv_path, newline='') as cf:
-                rdr = csv.DictReader(cf)
-                last = None
-                for r in rdr:
-                    pt = (float(r['latitude']), float(r['longitude']))
-                    if pt != last:
-                        self.latlon_path.append(pt)
-                        last = pt
-
-            self.latlon_path = self.resample(self.latlon_path, self.resample_dist)
-            if self.smoothing_enabled and self.smoothing_window > 1:
-                self.latlon_path = self.smooth(self.latlon_path, self.smoothing_window)
-            
-            rospy.loginfo(f"Path loaded with {len(self.latlon_path)} points")
-        except Exception as e:
-            rospy.logwarn(f"Failed to load path: {e}")
 
     def resample(self, pts, interval):
         R = 6378137.0
